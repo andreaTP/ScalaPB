@@ -16,10 +16,16 @@ case class GeneratorParams(
     asciiFormatToString: Boolean = false
 )
 
+case class GrpcParams(
+  grpcGen: (ServiceDescriptor, GeneratorParams) => GrpcServicePrinter = {
+      (sd, params) => new DefaultGrpcServicePrinter(sd, params)
+    }
+)
+
 // Exceptions that are caught and passed upstreams as errors.
 case class GeneratorException(message: String) extends Exception(message)
 
-class ProtobufGenerator(val params: GeneratorParams) extends DescriptorPimps {
+class ProtobufGenerator(val params: GeneratorParams, val grpcParams: GrpcParams) extends DescriptorPimps {
   def printEnum(printer: FunctionalPrinter, e: EnumDescriptor): FunctionalPrinter = {
     val name = e.nameSymbol
     printer
@@ -1571,7 +1577,7 @@ class ProtobufGenerator(val params: GeneratorParams) extends DescriptorPimps {
   def generateServiceFiles(file: FileDescriptor): Seq[CodeGeneratorResponse.File] = {
     if (params.grpc) {
       file.getServices.asScala.map { service =>
-        val p    = new GrpcServicePrinter(service, params)
+        val p    = grpcParams.grpcGen(service, params)
         val code = p.printService(FunctionalPrinter()).result()
         val b    = CodeGeneratorResponse.File.newBuilder()
         b.setName(file.scalaDirectory + "/" + service.objectName + ".scala")
@@ -1685,12 +1691,12 @@ object ProtobufGenerator {
       }
   }
 
-  def handleCodeGeneratorRequest(request: CodeGeneratorRequest): CodeGeneratorResponse = {
+  def handleCodeGeneratorRequest(request: CodeGeneratorRequest, grpcParams: GrpcParams): CodeGeneratorResponse = {
     val b = CodeGeneratorResponse.newBuilder
     parseParameters(request.getParameter) match {
       case Right(params) =>
         try {
-          val generator = new ProtobufGenerator(params)
+          val generator = new ProtobufGenerator(params, grpcParams)
           import generator.FileDescriptorPimp
           val filesByName: Map[String, FileDescriptor] =
             request.getProtoFileList.asScala.foldLeft[Map[String, FileDescriptor]](Map.empty) {

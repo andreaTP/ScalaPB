@@ -1,4 +1,6 @@
 import protocbridge.JvmGenerator
+import com.google.protobuf.Descriptors.ServiceDescriptor
+import scalapb.compiler.{GeneratorParams, DefaultGrpcServicePrinter, GrpcServicePrinter, GrpcParams}
 
 package object scalapb {
   def gen(
@@ -6,10 +8,13 @@ package object scalapb {
       javaConversions: Boolean = false,
       grpc: Boolean = true,
       singleLineToProtoString: Boolean = false,
-      asciiFormatToString: Boolean = false
+      asciiFormatToString: Boolean = false,
+      grpcGen: (ServiceDescriptor, GeneratorParams) => GrpcServicePrinter = {
+        (sd, params) => new DefaultGrpcServicePrinter(sd, params)
+      }
   ): (JvmGenerator, Seq[String]) =
     (
-      JvmGenerator("scala", ScalaPbCodeGenerator),
+      JvmGenerator("scala", new ScalaPbCodeGenerator(Some(GrpcParams(grpcGen = grpcGen)))),
       Seq(
         "flat_package"                -> flatPackage,
         "java_conversions"            -> javaConversions,
